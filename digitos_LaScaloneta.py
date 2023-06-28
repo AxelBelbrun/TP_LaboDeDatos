@@ -22,7 +22,7 @@ from sklearn.model_selection import cross_val_score
 from sklearn.model_selection import KFold
 #%%
 #Ejercicio 1
-df = pd.read_csv('mnist_desarrollo.csv')
+df = pd.read_csv('/home/labo2023/Descargas/mnist_desarrollo.csv')
 
 #Cuántas filas hay? (Considerando que "un dato" es una imagen, y cada imagen es una fila)
 print(df.count(axis=1))
@@ -33,8 +33,7 @@ print(df.count(axis=0))
 #cantidad de columnas del dataset - 1 (excluyendo la primer columna que representa al dìgito)
 cantidad_pixeles = len(df.columns)
 pixeles_relevantes = np.zeros(cantidad_pixeles)
-#Renombramos la columna que representa al dìgito como "digito":
-df.rename(columns = {'5' : 'digito'}, inplace = True)
+
 
 #Iteramos sobre cada columna del dataset, y hacemos dos cosas: la primera es 
 #tomar la cantidad de pixeles relevantes (con intensidad mayor a 100) de la columna, y luego,
@@ -43,7 +42,9 @@ df.rename(columns = {'5' : 'digito'}, inplace = True)
 for pixel in range (1,cantidad_pixeles):
     pixeles_relevantes[pixel] = (df.iloc[:,pixel] > 100).sum()
     df.iloc[:,pixel]=df.iloc[:,pixel]/255
-    
+df.columns = np.arange(0,785)
+#Renombramos la columna que representa al dìgito como "digito":
+df.rename(columns = {0 : 'digito'}, inplace = True)
 plt.plot(range(0,785),pixeles_relevantes)
 
 """ Graficamos entonces la cantidad de elementos con intensidad mayor
@@ -66,29 +67,33 @@ df_01['digito'].value_counts()
 #%%
 #Ejercicio 4
 
-
+#Creamos matrices arquetípicas para cada dígito, tomando la intensidad promedio de cada
+#pixel, para esos valores. Luego, restamos, para cada pixel, su intensidad en la matriz arquetípica del 1
+# y en el 0. Intuitivamente, nos quedamos con una métrica de cuánto difiere la relevancia
+#de un píxel con respecto al 0 y al 1, siendo 0 "no difiere" y 1 "difiere totalmente"
+  
 cero_arquetipico = df_01[df_01['digito']== 0].mean()
 uno_arquetipico = df_01[df_01['digito']== 1].mean()
 
 promedio=np.zeros(len(cero_arquetipico))
-promedio[0]=cero_arquetipico[0]
+
 for pixel in range(1,len(cero_arquetipico)):
     promedio[pixel]=abs(cero_arquetipico[pixel]-uno_arquetipico[pixel])
 
+#Tomamos los 3 mejores atributos según la descripción de más arriba:
+valores_maximos = np.argsort(promedio)[::-1][:3]
 
-#Creamos un DataFrame que se queda solo con los píxeles que, en al menos 5000 imágenes, tienen valores
-# mayores o iguales a 50. O sea, nos quedamos con los "pìxeles que suelen ser claros"
+#Otra opción: Creamos un DataFrame que se queda solo con los píxeles que, en al menos 5000 imágenes, 
+#tienen valores mayores o iguales a 100. O sea, nos quedamos con los "pìxeles que suelen ser claros"
 
-dfa = pd.DataFrame()
-dfa['5'] = df_01['5']
+df_alternativo = pd.DataFrame()
 
 for i in range (1,785):
-    if (df_01.iloc[:,i] >= 50).sum() > 5000:
-        n = '0.' + str(i)
-        dfa[n] = df_01.iloc[:,i]
+    if (df_01.iloc[:,i] >= 0.80).sum() > 5000:
+        df_alternativo[i] = df_01.iloc[:,i]
 
-score_promedio_c0 = np.zeros(20)
-score_promedio_s0 = np.zeros(20)
+a = df_alternativo.columns.values.tolist()
+
 
 
 #Probamos knn para distintas cantidades de atributos, tomando solo aquellos que caen dentro de nuestro criterio de elección
