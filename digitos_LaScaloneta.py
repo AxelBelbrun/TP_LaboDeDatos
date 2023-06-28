@@ -15,14 +15,14 @@ import pandas as pd
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.model_selection import train_test_split
 from sklearn import metrics
-from random import randint
+import random
 import matplotlib.pyplot as plt
 from sklearn.utils import shuffle
 from sklearn.model_selection import cross_val_score
 from sklearn.model_selection import KFold
 #%%
 #Ejercicio 1
-df = pd.read_csv('/home/labo2023/Descargas/mnist_desarrollo.csv')
+df = pd.read_csv('/home/clinux01/Descargas/mnist_desarrollo.csv')
 
 #Cuántas filas hay? (Considerando que "un dato" es una imagen, y cada imagen es una fila)
 print(df.count(axis=1))
@@ -59,7 +59,8 @@ df_01 = df[df['digito'].isin([0,1])]
 
 #%%
 #Ejercicio 3
-df_01['digito'].value_counts()   
+df_01['digito'].value_counts()  
+
 
 
 #Viendo que tenemos 6742 "1" + 5923 "0", tenemos un total de 12665 muestras, de las cuáles un 53% son "1" y el 47% son "0"
@@ -82,35 +83,104 @@ for pixel in range(1,len(cero_arquetipico)):
 
 #Tomamos los 3 mejores atributos según la descripción de más arriba:
 valores_maximos = np.argsort(promedio)[::-1][:3]
-
-#Otra opción: Creamos un DataFrame que se queda solo con los píxeles que, en al menos 5000 imágenes, 
-#tienen valores mayores o iguales a 100. O sea, nos quedamos con los "pìxeles que suelen ser claros"
+#Entrenamos un modelo de KNN para los atributos seleccionados: 
+X = pd.DataFrame()
+y = df_01['digito']
+for atributo in valores_maximos:
+        X[int(atributo)] = df_alternativo.loc[:,int(atributo)]
+model = KNeighborsClassifier(n_neighbors = 7) 
+model.fit(X,y)
+Y_pred = model.predict(X)
+score_con_seleccionados = metrics.accuracy_score(y, Y_pred)
+       
+#Otra opción: Creamos un DataFrame que se queda solo con los píxeles que, en al menos 1000 imágenes, 
+#tienen intensidad mayor o igual a 0.5. O sea, nos quedamos con los "pìxeles que suelen ser claros"
 
 df_alternativo = pd.DataFrame()
+df_alternativo['digito'] = df_01['digito']
 
 for i in range (1,785):
-    if (df_01.iloc[:,i] >= 0.80).sum() > 5000:
+    if (df_01.iloc[:,i] >= 0.5).sum() > 1000:
         df_alternativo[i] = df_01.iloc[:,i]
 
-a = df_alternativo.columns.values.tolist()
+#Pasamos los atributos de interés a una lista, para poder utilizar funciones no disponibles para series de Pandas
+atributos_a_lista = df_alternativo.columns.values.tolist()
+atributos_a_lista = atributos_a_lista[1:]
+#Probamos KNN para distintos conjuntos de 3 atributos:
+historial_de_pruebas = []
+for prueba in range (0,20):
+    #Tomamos 3 atributos al azar del sub-DataFrame
+    atributos = random.sample(atributos_a_lista,3)
+    #Creamos un dataframe que será el de training
+    X = pd.DataFrame()
+    #Creamos otro dataframe ue será el de validación
+    y = df_alternativo['digito']
+    #Agregamos los 3 atributos al dataFrame
+    for atributo in atributos:
+        X[int(atributo)] = df_alternativo.loc[:,int(atributo)]
+    #Creamos el modelo con 5 vecinos
+    model = KNeighborsClassifier(n_neighbors = 7)
+    #Lo fitteamos
+    model.fit(X,y)
+    #Hacemos que prediga los datos de X:
+    Y_pred = model.predict(X)
+    #Guardamos los atributos usados y el score (accuracy) en un array:
+    score = metrics.accuracy_score(y, Y_pred)
+    historial_de_pruebas.append([atributos,score])
+    
+#Hacemos un promedio del accuracy de las distintas pruebas:
+suma_de_accuracy = 0     
+for prueba in historial_de_pruebas:
+    #En el historiao guardamos los atributos usados y el score, así que para acceder al score hacemos:
+    suma_de_accuracy += prueba[1]
+promedio_accuracy = suma_de_accuracy/len(historial_de_pruebas)    
+print("Accuracy con atributos seleccionados: ", score_con_seleccionados)
+print("Acurracy promedio con atributos random: ", promedio_accuracy)
+#Claramente utilizar los atributos seleccionados mediante las matrices arquetípicas funciona mejor al menos para
+#para fitear modelos. ( Fue un buen consejo profe ;) ) 
 
+        
+#Probamos ahora KNN para n cantidades de atributos, tanto los elegidos a través de las matrices
+#arquetípicas, como atributos random.
 
-
-#Probamos knn para distintas cantidades de atributos, tomando solo aquellos que caen dentro de nuestro criterio de elección
-
-for m in range (1,21):
-    score = np.zeros(5)
-    for i in range (0,5):
-        X = pd.DataFrame()
-        #Hacemos un slice que devuelve m atributos
-        X = dfa.iloc[:,1::(105//m)]
-        Y = pd.DataFrame()
-        Y['5'] = dfa['5']
-        model = KNeighborsClassifier(n_neighbors = 5)
-        model.fit(X,Y)
-        Y_pred = model.predict(X)
-        score[i] = metrics.accuracy_score(Y, Y_pred)
-    score_promedio_s0[m-1] = np.sum(score)/len(score)
+historial_scores_mat_arquet = []
+for n in range (4,25):
+    #Tomamos los n mejores atributos según el criterio de matrices arquetípicas:
+    valores_maximos = np.argsort(promedio)[::-1][:n]
+    #Entrenamos un modelo de KNN para los atributos seleccionados: 
+    X = pd.DataFrame()
+    y = df_01['digito']
+    for atributo in valores_maximos:
+            X[int(atributo)] = df_alternativo.loc[:,int(atributo)]
+    model = KNeighborsClassifier(n_neighbors = 5) 
+    model.fit(X,y)
+    Y_pred = model.predict(X)
+    score = metrics.accuracy_score(y, Y_pred)
+    historial_scores_mat_arquet.append([n,score])
+#No hay demasiadas mejoras, no parece valer la pena entrenar KNN con más de tres atributos. (En caso del
+#criterio de matrices arquetípicas)
+    
+#Probamos ahora hacer KNN repeticiones para conjuntos de n atributos aleatorios, utilizando el dataframe alternativo
+#que filtra y nos devuelve los píxeles más claros.
+    
+for n in range (4,26):
+    #Tomamos n atributos random
+    atributos = random.sample(atributos_a_lista,n)
+    X = pd.DataFrame()
+    y = pd.DataFrame()
+    y['digito'] = df_alternativo['digito']
+    #Agregamos los atributos al dataframe X:
+    for atributo in atributos:
+        X[int(atributo)] = df_alternativo.loc[:,int(atributo)]
+    #Fiteamos y entrenamos el modelo:
+    model = KNeighborsClassifier(n_neighbors = 7)
+    model.fit(X,y)
+    Y_pred = model.predict(X)
+    score = metrics.accuracy_score(Y, Y_pred)
+    
+    
+    
+score_promedio_s0[m-1] = np.sum(score)/len(score)
 
 #Ahora hacemos lo mismo pero tomando valores aleatorios que pueden incluir aquellos píxeles que siempre son 0
 for m in range (1,21):
